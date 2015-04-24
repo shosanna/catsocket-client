@@ -1,6 +1,10 @@
 (ns catsocket-client.core
-  (:require [om.core :as om :include-macros true]
-            [om.dom :as dom :include-macros true]))
+  (:require
+            [cljs.core.async :as async :refer [<! >! put! chan]]
+            [om.core :as om :include-macros true]
+            [om.dom :as dom :include-macros true]
+            )
+  (:require-macros [cljs.core.async.macros :refer [go]]))
 
 (defonce app-state (atom {:text "Hello Chestnut!"}))
 
@@ -26,16 +30,23 @@
         floored (Math/floor r2)]
     (.substring (.toString floored 16) 1)))
 
-(defn guid []
+(defn guid "Generates a random GUID" []
   (str (s4) (s4) "-" (s4) "-" (s4) "-" (s4) "-" (s4) (s4) (s4)))
 
-(defn init []
+(defn ^:export init []
   (let [url "ws://localhost:9000/api/ws"
         socket (js/WebSocket. url)]
-    (set! (.-onopen socket) #(js/alert %))
+    (set! (.-onopen socket) #(log %))
     (set! (.-onmessage socket) on-message)
-
     socket))
+
+
+(defn log [& args]
+  (.apply (.-log js/console) js/console (clj->js args)))
+
+(let [c (chan)]
+  (put! c "hello")
+  (go (log (<! c))))
 
 (defn send [socket]
   (let [params {:api_key "foo"
