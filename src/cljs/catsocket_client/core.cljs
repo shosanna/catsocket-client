@@ -8,6 +8,11 @@
 
 (defonce app-state (atom {:text "Hello Chestnut!"}))
 
+(defn log [& args]
+  (.apply (.-log js/console) js/console (clj->js args)))
+
+(defn stringify [msg] (.stringify js/JSON (clj->js msg)))
+
 (defn main []
   (om/root
     (fn [app owner]
@@ -18,12 +23,6 @@
     app-state
     {:target (. js/document (getElementById "app"))}))
 
-;; (set! (.-title js/document) "uf")
-;; (.log js/console (.-title js/document))
-
-(defn on-message [event]
-  (.log js/console event))
-
 (defn s4 []
   (let [r (+ 1 (Math/random))
         r2 (* r 0x10000)
@@ -33,28 +32,49 @@
 (defn guid "Generates a random GUID" []
   (str (s4) (s4) "-" (s4) "-" (s4) "-" (s4) "-" (s4) (s4) (s4)))
 
-(defn ^:export init []
+(declare send on-message)
+
+(def socket (atom nil))
+(def connected? (atom false))
+(def identified? (atom false))
+(def queue (atom []))
+(def sent-messages (atom {}))
+
+(defn on-open
+  [socket event]
+  (reset! connected? true)
+  (send socket "identify" {}))
+
+(defn init []
   (let [url "ws://localhost:9000/api/ws"
-        socket (js/WebSocket. url)]
-    (set! (.-onopen socket) #(log %))
-    (set! (.-onmessage socket) on-message)
-    socket))
+        s (js/WebSocket. url)]
+    (set! (.-onopen s ) (partial on-open s))
+    (set! (.-onmessage s ) #(on-message (.parse js/JSON (.-data %))))
 
+    (reset! socket s)))
 
-(defn log [& args]
-  (.apply (.-log js/console) js/console (clj->js args)))
-
-(let [c (chan)]
-  (put! c "hello")
-  (go (log (<! c))))
-
-(defn send [socket]
+(defn send [socket action data]
   (let [params {:api_key "foo"
                 :user (guid)
-                :action "identify"
-                :data {}
+                :action action
+                :data data
                 :id (guid)
-                :timestamp (.getTime (js/Date.))}
-        json (clj->js params)
-        json-str (.stringify js/JSON json)]
-    (.send socket json-str)))
+                :timestamp (.getTime (js/Date.))}]
+    (if @connected?
+      (do
+        (swap! sent-messages assoc (:id params) params)
+        (.send socket (stringify params)))
+      (swap! queue conj params))))
+
+(defn flush-queue []
+  (log "flushing queue"))
+
+(defn on-message [data]
+  (condp = (.-action data)
+    "ack" (do
+            (let [id (.-id data)]
+              (when (= "identify" (get-in @sent-messages [id :action]))
+                (reset! identified? true)
+                (flush-queue))
+              (swap! sent-messages dissoc id)))
+    (log "unrecognized message" data)))
