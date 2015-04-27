@@ -6,7 +6,7 @@
             )
   (:require-macros [cljs.core.async.macros :refer [go]]))
 
-(defonce app-state (atom {:text "Hello Chestnut!"}))
+(defonce app-state (atom {:text "CatSocket client"}))
 
 (defn log [& args]
   (.apply (.-log js/console) js/console (clj->js args)))
@@ -22,76 +22,92 @@
 (defn guid "Generates a random GUID" []
   (str (s4) (s4) "-" (s4) "-" (s4) "-" (s4) "-" (s4) (s4) (s4)))
 
+
+(defn user
+  []
+  (let [user "user"
+        result (.getItem js/localStorage user)]
+    (if result
+      result
+      (do
+        (let [id (guid)]
+          (.setItem js/localStorage user id)
+          id)))))
+
+
 (declare send on-message)
 
-(def socket (atom nil))
-(def connected? (atom false))
-(def identified? (atom false))
-(def queue (atom []))
-(def sent-messages (atom {}))
-
 (defn on-open
-  [socket event]
-  (reset! connected? true)
-  (send socket "identify" {}))
+  [cat event]
+  (swap! cat assoc :connected? true)
+  (send cat "identify" {}))
 
 (defn init []
   (let [url "ws://localhost:9000/api/ws"
-        s (js/WebSocket. url)]
-    (set! (.-onopen s ) (partial on-open s))
-    (set! (.-onmessage s ) #(on-message (.parse js/JSON (.-data %))))
+        s (js/WebSocket. url)
+        cat (atom {:socket s
+                   :connected? false
+                   :identified? false
+                   :queue []
+                   :sent-messages {}})]
+    (set! (.-onopen s ) #(on-open cat %))
+    (set! (.-onmessage s ) #(on-message cat (.parse js/JSON (.-data %))))
 
-    (reset! socket s)))
+    cat))
 
-(defn send [socket action data]
+(defn send [cat action data]
   (let [params {:api_key "foo"
-                :user (guid)
+                :user (user)
                 :action action
                 :data data
                 :id (guid)
                 :timestamp (.getTime (js/Date.))}]
-    (if @connected?
+    (if (:connected? @cat)
       (do
-        (log "sending via socket, waiting for ACK")
-        (swap! sent-messages assoc (:id params) params)
-        (.send socket (stringify params)))
+        (log "sending" (clj->js params))
+        (swap! cat update-in [:sent-messages] assoc (:id params) params)
+        (.send (:socket @cat) (stringify params)))
       (do
         (log "enqueing")
-        (swap! queue conj params)))))
+        (swap! cat update-in [:queue] conj params)))))
 
-(defn flush-queue []
-  (log "identified flushing queue")
-  (doseq [item @queue]
-    (log "sending" (clj->js item))
-    (.send @socket (stringify item)))
-  (reset! queue []))
+(defn flush-queue [cat]
+  (log "identified, flushing queue")
 
-(defn on-message [data]
+  (let [q (:queue @cat)]
+    (swap! cat assoc :queue [])
+
+    (doseq [item q]
+      (log "sending" (clj->js item))
+      (.send (:socket @cat) (stringify item)))))
+
+(defn on-message [cat data]
   (condp = (.-action data)
     "ack" (do
             (let [id (.-id data)]
-              (when (= "identify" (get-in @sent-messages [id :action]))
-                (reset! identified? true)
-                (flush-queue))
-              (swap! sent-messages dissoc id)))
+              (when (= "identify" (get-in @cat [:sent-messages id :action]))
+                (swap! cat assoc :identified? true)
+                (flush-queue cat))
+
+              (log "ACK received: " data)
+              (swap! cat update-in [:sent-messages] dissoc id)))
     (log "unrecognized message" data)))
 
-(defn join [room]
-  (send @socket "join" {:room room}))
+(defn join [cat room]
+  (send cat "join" {:room room}))
 
-(defn leave [room]
-  (send @socket "leave" {:room room}))
+(defn leave [cat room]
+  (send cat "leave" {:room room}))
 
-(defn broadcast [room msg]
-  (send @socket "broadcast" {:room room :message msg}))
+(defn broadcast [cat room msg]
+  (send cat "broadcast" {:room room :message msg}))
 
 ;;
 
 (defn main []
-  (init)
-  (join "test")
-  (broadcast "test" "hello!")
-
+  (let [cat (init)]
+    (join cat "test")
+    (broadcast cat "test" "hello!"))
 
 
   (om/root
@@ -99,6 +115,6 @@
       (reify
         om/IRender
         (render [_]
-          (dom/h1 nil (str "nuf " (:text app))))))
+          (dom/h1 nil (:text app)))))
     app-state
     {:target (. js/document (getElementById "app"))}))
