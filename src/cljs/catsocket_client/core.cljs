@@ -42,21 +42,25 @@
   (swap! cat assoc :connected? true)
   (send cat "identify" {}))
 
-(defn init []
-  (let [url "ws://localhost:9000/api/ws"
-        s (js/WebSocket. url)
-        cat (atom {:socket s
-                   :connected? false
-                   :identified? false
-                   :queue []
-                   :sent-messages {}})]
-    (set! (.-onopen s ) #(on-open cat %))
-    (set! (.-onmessage s ) #(on-message cat (.parse js/JSON (.-data %))))
+(defn init
+  ([api-key] (init api-key {}))
 
-    cat))
+  ([api-key {:keys [host port] :or {host "localhost", port 9000}}]
+   (let [url (str "ws://" host ":" port "/api/ws")
+         socket (js/WebSocket. url)
+         cat (atom {:socket socket
+                    :api-key api-key
+                    :connected? false
+                    :identified? false
+                    :queue []
+                    :sent-messages {}})]
+     (set! (.-onopen socket) #(on-open cat %))
+     (set! (.-onmessage socket) #(on-message cat (.parse js/JSON (.-data %))))
+
+     cat)))
 
 (defn send [cat action data]
-  (let [params {:api_key "foo"
+  (let [params {:api_key (:api-key @cat)
                 :user (user)
                 :action action
                 :data data
@@ -105,7 +109,7 @@
 ;;
 
 (defn main []
-  (let [cat (init)]
+  (let [cat (init "foo-key")]
     (join cat "test")
     (broadcast cat "test" "hello!"))
 
