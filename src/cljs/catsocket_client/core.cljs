@@ -8,8 +8,13 @@
 
 (defonce app-state (atom {:text "CatSocket client"}))
 
+(def logger (atom true))
+(defn stop-logging [] (reset! logger false))
+(defn start-logging [] (reset! logger true))
+
 (defn log [& args]
-  (.apply (.-log js/console) js/console (clj->js args)))
+  (if @logger
+    (.apply (.-log js/console) js/console (clj->js args))))
 
 (defn stringify [msg] (.stringify js/JSON (clj->js msg)))
 
@@ -33,7 +38,6 @@
         (let [id (guid)]
           (.setItem js/localStorage user id)
           id)))))
-
 
 (declare send on-message)
 
