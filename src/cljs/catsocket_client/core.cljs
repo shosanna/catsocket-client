@@ -53,6 +53,7 @@
                     :connected? false
                     :identified? false
                     :queue []
+                    :handlers {}
                     :sent-messages {}})]
      (set! (.-onopen socket) #(on-open cat %))
      (set! (.-onmessage socket) #(on-message cat (.parse js/JSON (.-data %))))
@@ -95,9 +96,16 @@
 
               (log "ACK received: " data)
               (swap! cat update-in [:sent-messages] dissoc id)))
+    "message" (do
+                (let [room (.-room (.-data data))
+                      f (get-in @cat [:handlers room])]
+                  (if (re-find #"^function" (str (type f)))
+                    (f (.-message (.-data data)))
+                    (log "Handler is not a function" f))))
     (log "unrecognized message" data)))
 
-(defn join [cat room]
+(defn join [cat room f]
+  (swap! cat update-in [:handlers] assoc room f)
   (send cat "join" {:room room}))
 
 (defn leave [cat room]
@@ -110,7 +118,9 @@
 
 (defn main []
   (let [cat (init "foo-key")]
-    (join cat "test")
+    (log cat)
+    (join cat "test" #(log %))
+    (log "handlers:" (get-in @cat [:handlers]))
     (broadcast cat "test" "hello!"))
 
 
