@@ -67,7 +67,7 @@
                 :data data
                 :id (guid)
                 :timestamp (.getTime (js/Date.))}]
-    (if (:connected? @cat)
+    (if (and (:connected? @cat) (or (:identified? @cat) (= action "identify")))
       (do
         (log "sending" (clj->js params))
         (swap! cat update-in [:sent-messages] assoc (:id params) params)
