@@ -39,29 +39,48 @@
           (.setItem js/localStorage user id)
           id)))))
 
-(declare send on-message)
+(declare send on-message on-open on-close)
+
+(defn build-socket [host port]
+  (js/WebSocket. (str "ws://" host ":" port "/api/ws")))
+
+(defn set-handlers! [cat socket]
+  (set! (.-onopen socket) #(on-open cat %))
+  (set! (.-onclose socket) #(on-close cat %))
+  (set! (.-onmessage socket) #(on-message cat (.parse js/JSON (.-data %)))))
 
 (defn on-open
   [cat event]
   (swap! cat assoc :connected? true)
   (send cat "identify" {}))
 
+(defn on-close
+  [cat event]
+  (when-not (:force-close? @cat)
+    (log "reconnecting")
+    (swap! cat assoc :connected? false :identified? false)
+    (js/setTimeout (fn []
+                     (let [socket (apply build-socket ((juxt :host :port) @cat))]
+                       (set-handlers! cat socket)
+                       (swap! cat assoc :socket socket))) 2000)))
+
 (defn init
   ([api-key] (init api-key {}))
 
   ([api-key {:keys [host port] :or {host "localhost", port 9000}}]
-   (let [url (str "ws://" host ":" port "/api/ws")
-         socket (js/WebSocket. url)
+   (let [socket (build-socket host port)
+
          cat (atom {:socket socket
+                    :host host
+                    :port port
                     :api-key api-key
                     :connected? false
                     :identified? false
+                    :force-close? false
                     :queue []
                     :handlers {}
                     :sent-messages {}})]
-     (set! (.-onopen socket) #(on-open cat %))
-     (set! (.-onmessage socket) #(on-message cat (.parse js/JSON (.-data %))))
-
+     (set-handlers! cat socket)
      cat)))
 
 (defn send [cat action data]
@@ -118,10 +137,16 @@
 (defn broadcast [cat room msg]
   (send cat "broadcast" {:room room :message msg}))
 
-;;
+(defn close [cat]
+  (swap! cat assoc :force-close? true)
+  (log "Closing the socket.. Bye!")
+  (.close (:socket @cat)))
+
 
 (defn main []
   (let [cat (init "foo-key")]
+    (set! (.-nuf js/window) cat)
+    (set! (.-su js/window) (:socket @cat))
     (log cat)
     (join cat "test" #(log %))
     (log "handlers:" (get-in @cat [:handlers]))
