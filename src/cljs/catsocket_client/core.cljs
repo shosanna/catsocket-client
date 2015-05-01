@@ -124,7 +124,7 @@
       (swap! cat update-in [:sent-messages] assoc (:id params) params)
       (.send (:socket @cat) (stringify params)))
     (do
-      (log "enqueing")
+      ;; (log "enqueing")
       (swap! cat update-in [:queue] conj params))))
 
 (defn send [cat action data]
@@ -179,14 +179,21 @@
   (log "Closing the socket.. Bye!")
   (.close (:socket @cat)))
 
+(defn build [api-key host port]
+  (let [cat (init api-key)]
+    (reify
+      Object
+      (join [this room fn] (join cat room fn))
+      (leave [this room] (leave cat room))
+      (broadcast [this room msg] (broadcast cat room msg))
+      (close [this] (close cat)))))
 
 (defn main []
-  (let [cat (init "foo-key")]
+  (set! (.-catsocket js/window) (.-core js/catsocket_client))
+  (let [cat (init "foo")]
     (set! (.-nuf js/window) cat)
     (set! (.-su js/window) (:socket @cat))
-    (log cat)
     (join cat "test" #(log %))
-    (log "handlers:" (get-in @cat [:handlers]))
     (broadcast cat "test" "hello!"))
 
 
