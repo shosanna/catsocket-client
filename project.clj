@@ -38,7 +38,7 @@
                                         :output-dir    "resources/public/prod/out"
                                         :source-map    "resources/public/prod/out.js.map"
                                         :optimizations :advanced
-                                        :pretty-print true }}
+                                        :pretty-print false }}
                        }}
 
   :profiles {:dev {:source-paths ["env/dev/clj"]
