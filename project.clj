@@ -31,7 +31,14 @@
                                         :output-dir    "resources/public/js/out"
                                         :source-map    "resources/public/js/out.js.map"
                                         :optimizations :none
-                                        :pretty-print  true}}}}
+                                        :pretty-print  true}}
+                       :prod {:source-paths ["src/cljs"]
+                             :compiler {:output-to     "resources/public/prod/app.min.js"
+                                        :output-dir    "resources/public/prod/out"
+                                        :source-map    "resources/public/prod/out.js.map"
+                                        :optimizations :whitespace
+                                        :pretty-print true }}
+                       }}
 
   :profiles {:dev {:source-paths ["env/dev/clj"]
                    :test-paths ["test/clj"]

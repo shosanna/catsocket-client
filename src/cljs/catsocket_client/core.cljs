@@ -95,7 +95,7 @@
                        (swap! cat assoc :socket socket))) 2000)))
 
 (defn build
-  ([api-key] (init api-key {}))
+  ([api-key] (build api-key {}))
 
   ([api-key {:keys [host port] :or {host "localhost", port 9000}}]
    (let [socket (build-socket host port)
@@ -176,7 +176,7 @@
   (log "Closing the socket.. Bye!")
   (.close (:socket @cat)))
 
-(defn init [api-key host port]
+(defn ^:export init [api-key host port]
   (let [cat (build api-key)]
     (reify
       Object
