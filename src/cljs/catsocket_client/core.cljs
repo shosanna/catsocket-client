@@ -1,9 +1,6 @@
 (ns catsocket-client.core
   (:require
-            [cljs.core.async :as async :refer [<! >! put! chan close!]]
-            [om.core :as om :include-macros true]
-            [om.dom :as dom :include-macros true]
-            )
+            [cljs.core.async :as async :refer [<! >! put! chan close!]])
   (:require-macros [cljs.core.async.macros :refer [go go-loop]]))
 
 (declare log send do-send on-message on-open on-close)
@@ -97,7 +94,7 @@
                        (set-handlers! cat socket)
                        (swap! cat assoc :socket socket))) 2000)))
 
-(defn init
+(defn build
   ([api-key] (init api-key {}))
 
   ([api-key {:keys [host port] :or {host "localhost", port 9000}}]
@@ -179,8 +176,8 @@
   (log "Closing the socket.. Bye!")
   (.close (:socket @cat)))
 
-(defn build [api-key host port]
-  (let [cat (init api-key)]
+(defn init [api-key host port]
+  (let [cat (build api-key)]
     (reify
       Object
       (join [this room fn] (join cat room fn))
@@ -190,18 +187,9 @@
 
 (defn main []
   (set! (.-catsocket js/window) (.-core js/catsocket_client))
-  (let [cat (init "foo")]
-    (set! (.-nuf js/window) cat)
-    (set! (.-su js/window) (:socket @cat))
-    (join cat "test" #(log %))
-    (broadcast cat "test" "hello!"))
-
-
-  (om/root
-    (fn [app owner]
-      (reify
-        om/IRender
-        (render [_]
-          (dom/h1 nil (:text app)))))
-    app-state
-    {:target (. js/document (getElementById "app"))}))
+  ;; (let [cat (init "foo")]
+  ;;   (set! (.-nuf js/window) cat)
+  ;;   (set! (.-su js/window) (:socket @cat))
+  ;;   (join cat "test" #(log %))
+  ;;   (broadcast cat "test" "hello!"))
+  )
