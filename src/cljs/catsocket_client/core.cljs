@@ -178,12 +178,12 @@
 
 (defn ^:export init [api-key host port]
   (let [cat (build api-key)]
-    (reify
-      Object
-      (join [this room fn] (join cat room fn))
-      (leave [this room] (leave cat room))
-      (broadcast [this room msg] (broadcast cat room msg))
-      (close [this] (close cat)))))
+    (doto (js/Object.)
+
+      (aset "join" #(join cat %1 %2))
+      (aset "leave" #(leave cat %1))
+      (aset "broadcast" #(broadcast cat %1 %2))
+      (aset "close" #(close cat)))))
 
 (defn main []
   (set! (.-catsocket js/window) (.-core js/catsocket_client))

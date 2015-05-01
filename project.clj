@@ -26,7 +26,8 @@
 
   :uberjar-name "catsocket-client.jar"
 
-  :cljsbuild {:builds {:app {:source-paths ["src/cljs"]
+  :cljsbuild {:builds {
+                       :app {:source-paths ["src/cljs"]
                              :compiler {:output-to     "resources/public/js/app.js"
                                         :output-dir    "resources/public/js/out"
                                         :source-map    "resources/public/js/out.js.map"
@@ -36,7 +37,7 @@
                              :compiler {:output-to     "resources/public/prod/app.min.js"
                                         :output-dir    "resources/public/prod/out"
                                         :source-map    "resources/public/prod/out.js.map"
-                                        :optimizations :whitespace
+                                        :optimizations :advanced
                                         :pretty-print true }}
                        }}
 
@@ -78,4 +79,5 @@
                                             {:source-paths ["env/prod/cljs"]
                                              :compiler
                                              {:optimizations :advanced
-                                              :pretty-print false}}}}}})
+                                              :pretty-print false}}}}}}
+  )
