@@ -1,16 +1,51 @@
 (ns catsocket-client.core
   (:require
-            [cljs.core.async :as async :refer [<! >! put! chan]]
+            [cljs.core.async :as async :refer [<! >! put! chan close!]]
             [om.core :as om :include-macros true]
             [om.dom :as dom :include-macros true]
             )
-  (:require-macros [cljs.core.async.macros :refer [go]]))
+  (:require-macros [cljs.core.async.macros :refer [go go-loop]]))
+
+(declare log send do-send on-message on-open on-close)
 
 (defonce app-state (atom {:text "CatSocket client"}))
 
 (def logger (atom true))
 (defn stop-logging [] (reset! logger false))
 (defn start-logging [] (reset! logger true))
+
+(defn timeout [ms]
+  (let [c (chan)]
+    (js/setTimeout (fn [] (close! c)) ms)
+    c))
+
+(defn should-send? [timestamp]
+  (< (+ timestamp 5000) (.valueOf (js/Date.))))
+
+(defn start-timer
+  [cat ms]
+  (let [keep-looping (atom true)]
+    (go
+      (loop []
+        (log "Inside loop")
+        (<! (timeout 1000))
+
+        (let [groups (group-by (comp should-send? :timestamp)
+                               (:sent-messages @cat))
+
+              {to-send true, to-keep false} groups]
+
+          (swap! cat assoc :sent-messages (or to-keep {}))
+
+          (doseq [[_ params] to-send]
+            (log "RESENDING" params)
+            (let [new-params (assoc params :timestamp (.valueOf (js/Date.)))]
+              (do-send cat new-params))))
+
+        (when @keep-looping
+          (recur))))
+
+    #(reset! keep-looping false)))
 
 (defn log [& args]
   (if @logger
@@ -38,8 +73,6 @@
         (let [id (guid)]
           (.setItem js/localStorage user id)
           id)))))
-
-(declare send on-message on-open on-close)
 
 (defn build-socket [host port]
   (js/WebSocket. (str "ws://" host ":" port "/api/ws")))
@@ -83,6 +116,17 @@
      (set-handlers! cat socket)
      cat)))
 
+(defn do-send [cat params]
+  (if (and (:connected? @cat) (or (:identified? @cat)
+                                  (= (:action params) "identify")))
+    (do
+      (log "sending" (clj->js params))
+      (swap! cat update-in [:sent-messages] assoc (:id params) params)
+      (.send (:socket @cat) (stringify params)))
+    (do
+      (log "enqueing")
+      (swap! cat update-in [:queue] conj params))))
+
 (defn send [cat action data]
   (let [params {:api_key (:api-key @cat)
                 :user (user)
@@ -90,14 +134,7 @@
                 :data data
                 :id (guid)
                 :timestamp (.getTime (js/Date.))}]
-    (if (and (:connected? @cat) (or (:identified? @cat) (= action "identify")))
-      (do
-        (log "sending" (clj->js params))
-        (swap! cat update-in [:sent-messages] assoc (:id params) params)
-        (.send (:socket @cat) (stringify params)))
-      (do
-        (log "enqueing")
-        (swap! cat update-in [:queue] conj params)))))
+    (do-send cat params)))
 
 (defn flush-queue [cat]
   (log "identified, flushing queue")
