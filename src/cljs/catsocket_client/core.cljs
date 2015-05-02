@@ -156,9 +156,8 @@
     "message" (do
                 (let [room (.-room (.-data data))
                       f (get-in @cat [:handlers room])]
-                  (if (re-find #"^function" (str (type f)))
-                    (f (.-message (.-data data)))
-                    (log "Handler is not a function" f))))
+                  ; TODO - fix this - check if it is a function
+                    (f (.-message (.-data data)))))
     (log "unrecognized message" data)))
 
 (defn join [cat room f]

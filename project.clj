@@ -37,7 +37,7 @@
                              :compiler {:output-to     "resources/public/prod/app.min.js"
                                         :output-dir    "resources/public/prod/out"
                                         :source-map    "resources/public/prod/out.js.map"
-                                        :optimizations :advanced
+                                        :optimizations :whitespace
                                         :pretty-print false }}
                        }}
 
